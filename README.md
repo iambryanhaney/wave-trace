@@ -1,5 +1,5 @@
 # acoustic-wave-trace
-Simulation of acoustic wave propagation &amp; reflection within SketchUp 3D models.
+A SketchUp plugin simulating acoustic wave propagation & reflection within 3D environments.
 
 ![Demo Image 01](https://github.com/iambryanhaney/acoustic-wave-trace/blob/master/acoustic_wave_trace_01.jpg)
 
