@@ -50,8 +50,8 @@ module Wave_Trace
 				when STATE_MARK_IGNORE # Coming From
 					@page.show
 					if @page.speaker_list.empty?
-						@page.realtime_label.visible = false
-						@page.commit_label.visible = false
+						# @page.realtime_label.visible = false
+						# @page.commit_label.visible = false
 						@page.delete_button.visible = false 
 					end
 					@window.set_size(800,800)
@@ -342,7 +342,7 @@ module Wave_Trace
 		def draw(view)			
 			case @state
 			when STATE_IDLE
-				if @page.ready? 
+				if @page.win_open 
 					if @page.draw_realtime_check.checked?
 						@page.speaker_list.each do |speaker|
 							next unless speaker.realtime_check.checked?

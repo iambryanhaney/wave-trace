@@ -18,8 +18,8 @@ module Wave_Trace
         attr_accessor :max_bounces_drop
         attr_accessor :bounce_hidden_check
         attr_accessor :bounce_filter_drop
-        attr_accessor :realtime_label
-        attr_accessor :commit_label
+        # attr_accessor :realtime_label
+        # attr_accessor :commit_label
         attr_accessor :delete_button
         attr_accessor :win_open
 
@@ -31,169 +31,6 @@ module Wave_Trace
             MOVE_RIGHT = 2
         end
         
-        
-        # Save all speaker settings to attribute dictionary within the model, for later recall
-        def save_settings
-            dir = 'Wave_Trace'
-            model = Sketchup.active_model
-            model.start_operation('Wave_Trace: Save All Settings', true) # Start an undo-able operation
-            model.attribute_dictionaries.delete(dir) # First delete any pre-existing Wave_Trace dictionary
-            
-            model.set_attribute(dir, 'draw_realtime', @draw_realtime_check.checked?)
-            model.set_attribute(dir, 'bounce_hidden', @bounce_hidden_check.checked?)
-            model.set_attribute(dir, 'max_length', @max_length_drop.value)
-            model.set_attribute(dir, 'use_barrier', @use_barrier_check.checked?)
-            model.set_attribute(dir, 'max_bounces', @max_bounces_drop.value)
-            model.set_attribute(dir, 'bounce_filter', @bounce_filter_drop.value)
-            model.set_attribute(dir, 'draw_sweetspot', @draw_sweetspot_check.checked?)
-            
-            @speaker_list.each do |speaker|
-                # Name each speaker after its index location in speaker_list... "s_1" "s_2" etc
-                speaker_key = "s_#{speaker_list.index(speaker).to_s}" 
-                speaker_value = {
-                    name: speaker.button.caption,
-                    realtime_check: speaker.realtime_check.checked?,
-                    commit_check: speaker.commit_check.checked?,
-                    group_num: speaker.group_num
-                }
-                # Store the speaker settings as a string
-                model.set_attribute(dir, speaker_key, speaker_value.inspect) 
-            
-                speaker.driver_list.each do |driver|
-                    # Name driver index s_1_d_1, s_1_d_2 etc                
-                    driver_key = "#{speaker_key}_d_#{speaker.driver_list.index(driver).to_s}"
-                    driver_value = {
-                        name: driver.name_field.value,
-                        origin: driver.origin.to_a,
-                        vector: driver.vector.to_a,
-                        x_angle_low: driver.x_angle_low_drop.value,
-                        x_angle_high: driver.x_angle_high_drop.value,
-                        y_angle_low: driver.y_angle_low_drop.value,
-                        y_angle_high: driver.y_angle_high_drop.value,
-                        x_angle_link: driver.x_angle_link_check.checked?,
-                        y_angle_link: driver.y_angle_link_check.checked?,
-                        density: driver.density_drop.value,
-                        ray_list: driver.ray_list,
-                        realtime_check: driver.realtime_check.checked?,
-                        commit_check: driver.commit_check.checked?
-                    }
-                    # Store the driver settings as a string
-                    model.set_attribute(dir, driver_key, driver_value.inspect)
-                end
-            end
-            
-            # FIX - Save global options too
-            
-            model.commit_operation # End undo-able operation
-            UI.messagebox("              Important!\n\nAll speakers, drivers and global settings have been stored in your model. You must SAVE YOUR MODEL for these settings to persist.", MB_OK)
-        end
-        
-        
-        # Load all speakers from attribute dicionary and return a speaker_index list
-        def load_settings
-            dir = 'Wave_Trace'
-            
-            dict = Sketchup.active_model.attribute_dictionary(dir)
-            return if !dict # No saved settings
-
-            # Set the global options
-            @draw_realtime_check.checked = dict['draw_realtime']
-            @bounce_hidden_check.checked = dict['bounce_hidden']
-            @max_length_drop.value = dict['max_length']
-            @use_barrier_check.checked = dict['use_barrier']
-            @max_bounces_drop.value = dict['max_bounces']
-            @bounce_filter_drop.value = dict['bounce_filter']
-            @draw_sweetspot_check.checked = dict['draw_sweetspot']
-            
-            # Now load any speaker settings
-            s_index = 0
-            while(speaker_str = dict["s_#{s_index}"]) # There is a saved speaker at s_x in attribute dictionary
-                
-                # Create a speaker and set its values according to the saved information
-                speaker_hash = eval(speaker_str)
-                speaker = self.add_speaker(true) # Add a speaker with the 'loading' option set to TRUE (avoids creating any drivers)
-                        
-                speaker.name_field.value = speaker_hash[:name]
-                speaker.name_field.trigger_event(:textchange)
-                                                
-                speaker.realtime_check.checked = speaker_hash[:realtime_check]
-                speaker.commit_check.checked = speaker_hash[:commit_check]
-                speaker.group_num = speaker_hash[:group_num]
-                # Set the link_to_group droplist value to whatever the group_num index is. Then set a color if there is a group.
-                speaker.link_to_group_drop.value = speaker.link_to_group_drop.items[speaker.group_num] if speaker.group_num
-                case speaker.group_num
-                when 1
-                    speaker.group_highlight.background_color = Sketchup::Color.new(128,0,0,255) # Red
-                when 2
-                    speaker.group_highlight.background_color = Sketchup::Color.new(0,128,0,255) # Green
-                when 3
-                    speaker.group_highlight.background_color = Sketchup::Color.new(128,128,0,255) # Yellow
-                when 4
-                    speaker.group_highlight.background_color = Sketchup::Color.new(200,200,200,255) # White
-                end
-                            
-                d_index = 0
-                while(driver_str = dict["s_#{s_index}_d_#{d_index}"]) # There is a saved driver at s_x_d_x in attribute dictionary
-                    # Create a driver and set its values according to the saved information
-                    driver_hash = eval(driver_str)
-                    driver = speaker.add_driver(true) # Add a driver with the 'loading' option set to TRUE (avoids any group settings logic)
-                                                        
-                    driver.name_field.value = driver_hash[:name]
-                    driver.name_field.trigger_event(:textchange)
-
-                    origin_array = driver_hash[:origin]
-                    vector_array = driver_hash[:vector]
-                    if origin_array.empty? # No saved origin... it was never set
-                        driver.origin = nil
-                        driver.vector = nil
-                    else # Found an origin... so there has to be a vector as well. Load both and change "locate driver" button to reflect such.
-                        driver.origin = Geom::Point3d.new(origin_array)
-                        driver.vector = Geom::Vector3d.new(vector_array)
-                        driver.locate_button.background_color = Sketchup::Color.new(0, 0, 0, 128) # Un-highlight locate_button
-                        driver.locate_button.caption = "Relocate" # Change its caption
-                    end
-                    
-                    driver.realtime_check.checked = driver_hash[:realtime_check]
-                    driver.commit_check.checked = driver_hash[:commit_check]
-                    
-                    driver.density_drop.trigger_event(:change, driver_hash[:density], true) # Call the density change to update angle droplists
-                    driver.x_angle_low_drop.value = driver_hash[:x_angle_low]
-                    driver.x_angle_high_drop.value = driver_hash[:x_angle_high]
-                    driver.y_angle_low_drop.value = driver_hash[:y_angle_low]
-                    driver.y_angle_high_drop.value = driver_hash[:y_angle_high]
-                    driver.x_angle_link_check.checked = driver_hash[:x_angle_link]
-                    driver.y_angle_link_check.checked = driver_hash[:y_angle_link]
-                    driver.ray_list = driver_hash[:ray_list]
-                                    
-                    d_index += 1
-                end
-                s_index += 1
-            end
-        
-            self.select_speaker(@speaker_list.first) if speaker_list.length > 0
-        end
-                
-        
-        def try_load
-            return if @tried_to_load # Already tried to load settings once when the window first signalled it was ready. Abort.
-            
-            @tried_to_load = true
-            self.load_settings
-        end
-        
-        
-        def highlight_mute # Workaround to keep new buttons from having focus highlight
-            @window.remove_control(@dummy_button) if @dummy_button	
-            @dummy_button = SKUI::Button.new('')   
-            @dummy_button.width = 0
-            @dummy_button.height = 0
-            @dummy_button.position(0,0)
-            @dummy_button.visible = true
-            @window.add_control(@dummy_button)
-        end
-            
-            
-            
         def initialize(window)
             @window = window
             @win_open = false
@@ -207,14 +44,14 @@ module Wave_Trace
                     
             self.highlight_mute
             
-            #### Global menu 
-            @global_menu_background = SKUI::Container.new
-            @global_menu_background.width = 800
-            @global_menu_background.height = 80
-            @global_menu_background.position(0, RAY_PAGE_OFFSET)
-            @global_menu_background.background_color = Sketchup::Color.new(0, 0, 0, 128)
-            @global_menu_background.visible = true
-            @window.add_control(@global_menu_background)
+            #### Header menu 
+            @header = SKUI::Container.new
+            @header.width = 800
+            @header.height = 80
+            @header.position(0, RAY_PAGE_OFFSET)
+            @header.background_color = Sketchup::Color.new(0, 0, 0, 128)
+            @header.visible = true
+            @window.add_control(@header)
             
             @add_button = SKUI::Button.new('Add Speaker') { |control| self.add_speaker }
             @add_button.width = 85
@@ -230,13 +67,12 @@ module Wave_Trace
             
             @please_add_label = Wave_Trace::gui_create_label('Please add a speaker to get started...', 325, (330 + RAY_PAGE_OFFSET), true)
             @window.add_control(@please_add_label)		
+                        
+            # @realtime_label = Wave_Trace::gui_create_label('Realtime:', 2, (80 + SPEAKER_PAGE_OFFSET), false)
+            # @window.add_control(@realtime_label)
             
-                    
-            @realtime_label = Wave_Trace::gui_create_label('Realtime:', 2, (80 + SPEAKER_PAGE_OFFSET), false)
-            @window.add_control(@realtime_label)
-            
-            @commit_label = Wave_Trace::gui_create_label('Commit:', 2, (100 + SPEAKER_PAGE_OFFSET), false)
-            @window.add_control(@commit_label)
+            # @commit_label = Wave_Trace::gui_create_label('Commit:', 2, (100 + SPEAKER_PAGE_OFFSET), false)
+            # @window.add_control(@commit_label)
             
             @speaker_name_label = Wave_Trace::gui_create_label('Speaker Name', 355, (125 + SPEAKER_PAGE_OFFSET), false)
             @speaker_name_label.font = SKUI::Font.new(nil, 9)
@@ -325,16 +161,16 @@ module Wave_Trace
             @bounce_filter_drop.on(:change) { |control| @tool.update_all_drivers }
             @window.add_control(@bounce_filter_drop)
                     
-            @draw_sweetspot_label = Wave_Trace::gui_create_label("Create sweet spot", 483, (2 + RAY_PAGE_OFFSET), true)
-            @draw_sweetspot_label.tooltip = "This will find the axis intersections within 15 degrees of any grouped pair of speakers and create a" +
-                                            " highlighted area for both the realtime drawing and any geometry created. Only pairs are supported, on" +
-                                            " a first-come first-serve basis... any additional speakers in the group will be ignored."
-            @window.add_control(@draw_sweetspot_label)
+            # @draw_sweetspot_label = Wave_Trace::gui_create_label("Create sweet spot", 483, (2 + RAY_PAGE_OFFSET), true)
+            # @draw_sweetspot_label.tooltip = "This will find the axis intersections within 15 degrees of any grouped pair of speakers and create a" +
+            #                                 " highlighted area for both the realtime drawing and any geometry created. Only pairs are supported, on" +
+            #                                 " a first-come first-serve basis... any additional speakers in the group will be ignored."
+            # @window.add_control(@draw_sweetspot_label)
             
-            @draw_sweetspot_check = SKUI::Checkbox.new('', true)
-            @draw_sweetspot_check.on(:change) { |control| control.checked? } # FIX - Draw a sweetspot!
-            @draw_sweetspot_check.position(522, (21 + RAY_PAGE_OFFSET))
-            @window.add_control(@draw_sweetspot_check)
+            # @draw_sweetspot_check = SKUI::Checkbox.new('', true)
+            # @draw_sweetspot_check.on(:change) { |control| control.checked? } # FIX - Draw a sweetspot!
+            # @draw_sweetspot_check.position(522, (21 + RAY_PAGE_OFFSET))
+            # @window.add_control(@draw_sweetspot_check)
             
             @bounce_hidden_label = Wave_Trace::gui_create_label("Bounce off hidden geometry", 2, (42 + RAY_PAGE_OFFSET), true)
             @bounce_hidden_label.tooltip = "This will cause rays to reflect off all geometry, hidden or not. Very useful if you'd like to hide objects" +
@@ -346,20 +182,20 @@ module Wave_Trace
             @bounce_hidden_check.on(:change) { |control| control.checked? ; @tool.update_all_drivers }
             @window.add_control(@bounce_hidden_check)
             
-            @use_barrier_label = Wave_Trace::gui_create_label("Stop rays at barrier", 172 , (42 + RAY_PAGE_OFFSET), true)
-            @window.add_control(@use_barrier_label)
+            # @use_barrier_label = Wave_Trace::gui_create_label("Stop rays at barrier", 172 , (42 + RAY_PAGE_OFFSET), true)
+            # @window.add_control(@use_barrier_label)
             
-            @use_barrier_check = SKUI::Checkbox.new('', true)
-            @use_barrier_check.on(:change) { |control| control.checked? } # FIX - Start barrier tool
-            @use_barrier_check.position(214, (61 + RAY_PAGE_OFFSET))
-            @window.add_control(@use_barrier_check)		
+            # @use_barrier_check = SKUI::Checkbox.new('', true)
+            # @use_barrier_check.on(:change) { |control| control.checked? } # FIX - Start barrier tool
+            # @use_barrier_check.position(214, (61 + RAY_PAGE_OFFSET))
+            # @window.add_control(@use_barrier_check)		
             
-            @define_barrier_button = SKUI::Button.new("Define Barrier") { |control| @tool.set_state(STATE_DEFINE_BARRIER) 
-                                                                        Sketchup.active_model.active_view.invalidate  }
-            @define_barrier_button.width = 92
-            @define_barrier_button.height = 20
-            @define_barrier_button.position(238, (58 + RAY_PAGE_OFFSET))
-            @window.add_control(@define_barrier_button)		
+            # @define_barrier_button = SKUI::Button.new("Define Barrier") { |control| @tool.set_state(STATE_DEFINE_BARRIER) 
+            #                                                             Sketchup.active_model.active_view.invalidate  }
+            # @define_barrier_button.width = 92
+            # @define_barrier_button.height = 20
+            # @define_barrier_button.position(238, (58 + RAY_PAGE_OFFSET))
+            # @window.add_control(@define_barrier_button)		
 
             @mark_ignore_button = SKUI::Button.new("Mark Objects to Ignore") { |control| @tool.set_state(STATE_MARK_IGNORE) 
                                                                                 Sketchup.active_model.active_view.invalidate }
@@ -372,33 +208,212 @@ module Wave_Trace
             @vis_to_geom_button.position(-5, (55 + RAY_PAGE_OFFSET))
             @window.add_control(@vis_to_geom_button)
             
-            @commit_to_geom_button = SKUI::Button.new("Commit to Geometry") { |control| self.commit_to_geom }
-            @commit_to_geom_button.width = 125
-            @commit_to_geom_button.position(-133, (55 + RAY_PAGE_OFFSET))
-            @window.add_control(@commit_to_geom_button)
+            # @commit_to_geom_button = SKUI::Button.new("Commit to Geometry") { |control| self.commit_to_geom }
+            # @commit_to_geom_button.width = 125
+            # @commit_to_geom_button.position(-133, (55 + RAY_PAGE_OFFSET))
+            # @window.add_control(@commit_to_geom_button)
             
-            @save_settings_button = SKUI::Button.new("Save Settings") { |control| self.save_settings }
-            @save_settings_button.width = 100
-            @save_settings_button.height = 20
-            @save_settings_button.position(-5, (3 + RAY_PAGE_OFFSET))
-            @window.add_control(@save_settings_button)
+            # @save_settings_button = SKUI::Button.new("Save Settings") { |control| self.save_settings }
+            # @save_settings_button.width = 100
+            # @save_settings_button.height = 20
+            # @save_settings_button.position(-5, (3 + RAY_PAGE_OFFSET))
+            # @window.add_control(@save_settings_button)
             
-            @refresh_all_button = SKUI::Button.new("Refresh ALL Rays") { |control| @tool.update_all_drivers }
-            @refresh_all_button.width = 120
-            @refresh_all_button.height = 40
-            @refresh_all_button.background_color = Sketchup::Color.new( 255, 228, 196, 100)
-            @refresh_all_button.position(-10, (138 + SPEAKER_PAGE_OFFSET))
-            @window.add_control(@refresh_all_button)
+            # @refresh_all_button = SKUI::Button.new("Refresh ALL Rays") { |control| @tool.update_all_drivers }
+            # @refresh_all_button.width = 120
+            # @refresh_all_button.height = 40
+            # @refresh_all_button.background_color = Sketchup::Color.new( 255, 228, 196, 100)
+            # @refresh_all_button.position(-10, (138 + SPEAKER_PAGE_OFFSET))
+            # @window.add_control(@refresh_all_button)
                     
             self.highlight_mute		
                     
-            @static_elements = [@add_button, @delete_button, @realtime_label, @commit_label, @global_menu_background, @draw_realtime_label,
-                                @draw_realtime_check, @max_length_label, @max_length_drop, @max_bounces_label, @max_bounces_drop, @bounce_filter_label,
-                                @bounce_filter_drop, @draw_sweetspot_label, @draw_sweetspot_check, @bounce_hidden_label, @bounce_hidden_check,
-                                @use_barrier_label, @use_barrier_check, @define_barrier_button, @mark_ignore_button, @vis_to_geom_button,
-                                @commit_to_geom_button,	@save_settings_button, @please_add_label, @refresh_all_button]
+            @static_elements = [
+                @add_button,
+                @delete_button,
+                # @realtime_label, 
+                # @commit_label, 
+                @header, 
+                @draw_realtime_label,
+                @draw_realtime_check, 
+                @max_length_label, 
+                @max_length_drop,
+                @max_bounces_label, 
+                @max_bounces_drop,
+                @bounce_filter_label,
+                @bounce_filter_drop,
+                # @draw_sweetspot_label,
+                # @draw_sweetspot_check,
+                @bounce_hidden_label,
+                @bounce_hidden_check,
+                # @use_barrier_label,
+                # @use_barrier_check,
+                # @define_barrier_button,
+                @mark_ignore_button,
+                @vis_to_geom_button,
+                # @commit_to_geom_button,
+                # @save_settings_button,
+                @please_add_label,
+                # @refresh_all_button
+            ]
         end
         
+        # Save all speaker settings to attribute dictionary within the model, for later recall
+        def save_settings
+            dir = 'Wave_Trace'
+            model = Sketchup.active_model
+            model.start_operation('Wave_Trace: Save All Settings', true) # Start an undo-able operation
+            model.attribute_dictionaries.delete(dir) # First delete any pre-existing Wave_Trace dictionary
+            
+            model.set_attribute(dir, 'draw_realtime', @draw_realtime_check.checked?)
+            model.set_attribute(dir, 'bounce_hidden', @bounce_hidden_check.checked?)
+            model.set_attribute(dir, 'max_length', @max_length_drop.value)
+            # model.set_attribute(dir, 'use_barrier', @use_barrier_check.checked?)
+            model.set_attribute(dir, 'max_bounces', @max_bounces_drop.value)
+            model.set_attribute(dir, 'bounce_filter', @bounce_filter_drop.value)
+            # model.set_attribute(dir, 'draw_sweetspot', @draw_sweetspot_check.checked?)
+            
+            @speaker_list.each do |speaker|
+                # Name each speaker after its index location in speaker_list... "s_1" "s_2" etc
+                speaker_key = "s_#{speaker_list.index(speaker).to_s}" 
+                speaker_value = {
+                    name: speaker.button.caption,
+                    realtime_check: speaker.realtime_check.checked?,
+                    commit_check: speaker.commit_check.checked?,
+                    group_num: speaker.group_num
+                }
+                # Store the speaker settings as a string
+                model.set_attribute(dir, speaker_key, speaker_value.inspect) 
+            
+                speaker.driver_list.each do |driver|
+                    # Name driver index s_1_d_1, s_1_d_2 etc                
+                    driver_key = "#{speaker_key}_d_#{speaker.driver_list.index(driver).to_s}"
+                    driver_value = {
+                        name: driver.name_field.value,
+                        origin: driver.origin.to_a,
+                        vector: driver.vector.to_a,
+                        x_angle_low: driver.x_angle_low_drop.value,
+                        x_angle_high: driver.x_angle_high_drop.value,
+                        y_angle_low: driver.y_angle_low_drop.value,
+                        y_angle_high: driver.y_angle_high_drop.value,
+                        x_angle_link: driver.x_angle_link_check.checked?,
+                        y_angle_link: driver.y_angle_link_check.checked?,
+                        density: driver.density_drop.value,
+                        ray_list: driver.ray_list,
+                        realtime_check: driver.realtime_check.checked?,
+                        commit_check: driver.commit_check.checked?
+                    }
+                    # Store the driver settings as a string
+                    model.set_attribute(dir, driver_key, driver_value.inspect)
+                end
+            end
+            
+            # FIX - Save global options too
+            
+            model.commit_operation # End undo-able operation
+            UI.messagebox("              Important!\n\nAll speakers, drivers and global settings have been stored in your model. You must SAVE YOUR MODEL for these settings to persist.", MB_OK)
+        end
+        
+        # Load all speakers from attribute dicionary and return a speaker_index list
+        def load_settings
+            dir = 'Wave_Trace'
+            
+            dict = Sketchup.active_model.attribute_dictionary(dir)
+            return if !dict # No saved settings
+
+            # Set the global options
+            @draw_realtime_check.checked = dict['draw_realtime']
+            @bounce_hidden_check.checked = dict['bounce_hidden']
+            @max_length_drop.value = dict['max_length']
+            # @use_barrier_check.checked = dict['use_barrier']
+            @max_bounces_drop.value = dict['max_bounces']
+            @bounce_filter_drop.value = dict['bounce_filter']
+            # @draw_sweetspot_check.checked = dict['draw_sweetspot']
+            
+            # Now load any speaker settings
+            s_index = 0
+            while(speaker_str = dict["s_#{s_index}"]) # There is a saved speaker at s_x in attribute dictionary
+                
+                # Create a speaker and set its values according to the saved information
+                speaker_hash = eval(speaker_str)
+                speaker = self.add_speaker(true) # Add a speaker with the 'loading' option set to TRUE (avoids creating any drivers)
+                        
+                speaker.name_field.value = speaker_hash[:name]
+                speaker.name_field.trigger_event(:textchange)
+                                                
+                speaker.realtime_check.checked = speaker_hash[:realtime_check]
+                speaker.commit_check.checked = speaker_hash[:commit_check]
+                speaker.group_num = speaker_hash[:group_num]
+                # Set the link_to_group droplist value to whatever the group_num index is. Then set a color if there is a group.
+                # speaker.link_to_group_drop.value = speaker.link_to_group_drop.items[speaker.group_num] if speaker.group_num
+                # case speaker.group_num
+                # when 1
+                #     speaker.group_highlight.background_color = Sketchup::Color.new(128,0,0,255) # Red
+                # when 2
+                #     speaker.group_highlight.background_color = Sketchup::Color.new(0,128,0,255) # Green
+                # when 3
+                #     speaker.group_highlight.background_color = Sketchup::Color.new(128,128,0,255) # Yellow
+                # when 4
+                #     speaker.group_highlight.background_color = Sketchup::Color.new(200,200,200,255) # White
+                # end
+                            
+                d_index = 0
+                while(driver_str = dict["s_#{s_index}_d_#{d_index}"]) # There is a saved driver at s_x_d_x in attribute dictionary
+                    # Create a driver and set its values according to the saved information
+                    driver_hash = eval(driver_str)
+                    driver = speaker.add_driver(true) # Add a driver with the 'loading' option set to TRUE (avoids any group settings logic)
+                                                        
+                    driver.name_field.value = driver_hash[:name]
+                    driver.name_field.trigger_event(:textchange)
+
+                    origin_array = driver_hash[:origin]
+                    vector_array = driver_hash[:vector]
+                    if origin_array.empty? # No saved origin... it was never set
+                        driver.origin = nil
+                        driver.vector = nil
+                    else # Found an origin... so there has to be a vector as well. Load both and change "locate driver" button to reflect such.
+                        driver.origin = Geom::Point3d.new(origin_array)
+                        driver.vector = Geom::Vector3d.new(vector_array)
+                        driver.locate_button.background_color = Sketchup::Color.new(0, 0, 0, 128) # Un-highlight locate_button
+                        driver.locate_button.caption = "Relocate" # Change its caption
+                    end
+                    
+                    driver.realtime_check.checked = driver_hash[:realtime_check]
+                    driver.commit_check.checked = driver_hash[:commit_check]
+                    
+                    driver.density_drop.trigger_event(:change, driver_hash[:density], true) # Call the density change to update angle droplists
+                    driver.x_angle_low_drop.value = driver_hash[:x_angle_low]
+                    driver.x_angle_high_drop.value = driver_hash[:x_angle_high]
+                    driver.y_angle_low_drop.value = driver_hash[:y_angle_low]
+                    driver.y_angle_high_drop.value = driver_hash[:y_angle_high]
+                    driver.x_angle_link_check.checked = driver_hash[:x_angle_link]
+                    driver.y_angle_link_check.checked = driver_hash[:y_angle_link]
+                    driver.ray_list = driver_hash[:ray_list]
+                                    
+                    d_index += 1
+                end
+                s_index += 1
+            end
+        
+            self.select_speaker(@speaker_list.first) if speaker_list.length > 0
+        end     
+        
+        def try_load
+            return if @tried_to_load # Already tried to load settings once when the window first signalled it was ready. Abort.
+            
+            @tried_to_load = true
+            self.load_settings
+        end
+        
+        def highlight_mute # Workaround to keep new buttons from having focus highlight
+            @window.remove_control(@dummy_button) if @dummy_button	
+            @dummy_button = SKUI::Button.new('')   
+            @dummy_button.width = 0
+            @dummy_button.height = 0
+            @dummy_button.position(0,0)
+            @dummy_button.visible = true
+            @window.add_control(@dummy_button)
+        end
         
         def vis_to_geom
             # Calculate the workload
@@ -477,90 +492,82 @@ module Wave_Trace
             Sketchup.active_model.active_view.invalidate
             UI.messagebox("All visible (Realtime) rays have been converted into model geometry.\n\nDraw Realtime Ray Previews has been toggled OFF.", MB_OK)
         end	
-                            
-        
-        
         
         def commit_to_geom
-            # Calculate the workload
-            num_rays = 0
-            speaker_list.each do |speaker|
-                next if !speaker.commit_check.checked?
-                speaker.driver_list.each do |driver|
-                    next if !driver.commit_check.checked?
-                    next if !driver.origin	
-                    num_rays += driver.ray_list.length unless driver.ray_list.empty?
-                end
-            end
+            # # Calculate the workload
+            # num_rays = 0
+            # speaker_list.each do |speaker|
+            #     next if !speaker.commit_check.checked?
+            #     speaker.driver_list.each do |driver|
+            #         next if !driver.commit_check.checked?
+            #         next if !driver.origin	
+            #         num_rays += driver.ray_list.length unless driver.ray_list.empty?
+            #     end
+            # end
             
-            if (num_rays == 0)
-                UI.messagebox("No rays specified! (Toggle Commit / C)", MB_OK)
-                return
-            end
+            # if (num_rays == 0)
+            #     UI.messagebox("No rays specified! (Toggle Commit / C)", MB_OK)
+            #     return
+            # end
             
             
-            choice = UI.messagebox("This will convert all specified rays (Commit / C) to actual model geometry.\n\nTotal rays to convert: #{num_rays}\n\n" +
-                    "This process can take a while (minutes) if you have leaned towards any extreme settings (dense rays, long rays, etc).\n\n" +
-                    "The status bar will cease updating in such cases, but work is still being done. I'll pop-up again and make a sound when finished...", MB_OKCANCEL)
+            # choice = UI.messagebox("This will convert all specified rays (Commit / C) to actual model geometry.\n\nTotal rays to convert: #{num_rays}\n\n" +
+            #         "This process can take a while (minutes) if you have leaned towards any extreme settings (dense rays, long rays, etc).\n\n" +
+            #         "The status bar will cease updating in such cases, but work is still being done. I'll pop-up again and make a sound when finished...", MB_OKCANCEL)
             
-            if choice == 2
-                return
-            end
+            # if choice == 2
+            #     return
+            # end
                 
-            @window.set_size(0,0)	
+            # @window.set_size(0,0)	
                 
-            num_lines = 0
-            Sketchup.active_model.start_operation('Wave_Trace: Create Geometry From Realtime Rays', true) # Create undo start
-            speaker_list.each do |speaker|
-                next if !speaker.commit_check.checked?
-                speaker.driver_list.each do |driver|
-                    next if !driver.commit_check.checked?
-                    next if !driver.origin
-                    next if driver.ray_list.length < 1
-                    driver_group = Sketchup.active_model.active_entities.add_group
-                    driver.ray_list.each do |point_list|
-                        next if point_list.length < 6
-                        ray_group = driver_group.entities.add_group
-                        p_list = Array.new(point_list)
+            # num_lines = 0
+            # Sketchup.active_model.start_operation('Wave_Trace: Create Geometry From Realtime Rays', true) # Create undo start
+            # speaker_list.each do |speaker|
+            #     next if !speaker.commit_check.checked?
+            #     speaker.driver_list.each do |driver|
+            #         next if !driver.commit_check.checked?
+            #         next if !driver.origin
+            #         next if driver.ray_list.length < 1
+            #         driver_group = Sketchup.active_model.active_entities.add_group
+            #         driver.ray_list.each do |point_list|
+            #             next if point_list.length < 6
+            #             ray_group = driver_group.entities.add_group
+            #             p_list = Array.new(point_list)
                         
-                        ray_color = p_list.shift(3)
-                        # Assign/Check if color material already exists... if it returns nil, add a new color
-                        if !(ray_material = Sketchup.active_model.materials["Wave_Trace Ray Color R#{ray_color[0]} G#{ray_color[1]} B#{ray_color[2]}"])
-                            ray_material = Sketchup.active_model.materials.add("Wave_Trace Ray Color R#{ray_color[0]} G#{ray_color[1]} B#{ray_color[2]}")
-                            ray_material.color = Sketchup::Color.new(ray_color)
-                        end
+            #             ray_color = p_list.shift(3)
+            #             # Assign/Check if color material already exists... if it returns nil, add a new color
+            #             if !(ray_material = Sketchup.active_model.materials["Wave_Trace Ray Color R#{ray_color[0]} G#{ray_color[1]} B#{ray_color[2]}"])
+            #                 ray_material = Sketchup.active_model.materials.add("Wave_Trace Ray Color R#{ray_color[0]} G#{ray_color[1]} B#{ray_color[2]}")
+            #                 ray_material.color = Sketchup::Color.new(ray_color)
+            #             end
                         
-                        # Drop the first 2 array values (unused alpha, unused line_width), add the ray origin to the beginning,
-                        # then create edges from the entire point list. Finally, apply the color material to each edge.
-                        edge_array = ray_group.entities.add_edges(p_list.drop(2).unshift(driver.origin)) # <-- You got all that???   =)
-                        if edge_array && !edge_array.empty?
-                            edge_array.each do |edge|
-                                edge.material = ray_material
-                            end
-                        end
+            #             # Drop the first 2 array values (unused alpha, unused line_width), add the ray origin to the beginning,
+            #             # then create edges from the entire point list. Finally, apply the color material to each edge.
+            #             edge_array = ray_group.entities.add_edges(p_list.drop(2).unshift(driver.origin)) # <-- You got all that???   =)
+            #             if edge_array && !edge_array.empty?
+            #                 edge_array.each do |edge|
+            #                     edge.material = ray_material
+            #                 end
+            #             end
                         
-                        # Add a point at the end of each ray.
-                        ray_group.entities.add_cpoint(point_list.last)
+            #             # Add a point at the end of each ray.
+            #             ray_group.entities.add_cpoint(point_list.last)
                         
-                        # Update the status bar with progress every 5 percent of the job finished.
-                        if ( ( ( num_lines.to_f / num_rays ) * 100 ).to_i % 5 == 0 )
-                            Sketchup.status_text = "Creating geometry... #{num_lines} of #{num_rays} rays converted to edges."
-                        end
-                        num_lines += 1
-                    end
-                end
-            end
-            Sketchup.active_model.commit_operation # Undo end
-            Sketchup.status_text = nil
-            @draw_realtime_check.checked = false
-            @window.set_size(800,800)	
-            Sketchup.active_model.active_view.invalidate
-            UI.messagebox("All selected (Commit) rays have been converted into model geometry.\n\nDraw Realtime Ray Previews has been toggled OFF.", MB_OK)
-        end
-        
-        
-        def ready?
-            return @win_open
+            #             # Update the status bar with progress every 5 percent of the job finished.
+            #             if ( ( ( num_lines.to_f / num_rays ) * 100 ).to_i % 5 == 0 )
+            #                 Sketchup.status_text = "Creating geometry... #{num_lines} of #{num_rays} rays converted to edges."
+            #             end
+            #             num_lines += 1
+            #         end
+            #     end
+            # end
+            # Sketchup.active_model.commit_operation # Undo end
+            # Sketchup.status_text = nil
+            # @draw_realtime_check.checked = false
+            # @window.set_size(800,800)	
+            # Sketchup.active_model.active_view.invalidate
+            # UI.messagebox("All selected (Commit) rays have been converted into model geometry.\n\nDraw Realtime Ray Previews has been toggled OFF.", MB_OK)
         end
         
         # Move all of this to SpeakerPage::initialize...
@@ -589,8 +596,8 @@ module Wave_Trace
                 speaker.button.position( (last_speaker.button.left) + (last_speaker.button.width + 1), (50 + SPEAKER_PAGE_OFFSET))
             else
                 ### List is empty... this is the first speaker	
-                @realtime_label.visible = true					# Why are these settings here???
-                @commit_label.visible = true
+                # @realtime_label.visible = true					# Why are these settings here???
+                # @commit_label.visible = true
                 @speaker_name_label.visible = true
                 @delete_button.visible = true
                 @please_add_label.visible = false
@@ -635,7 +642,6 @@ module Wave_Trace
             @current_speaker = speaker		
         end
         
-        
         def update_speaker_name(control)
             old_name = @current_speaker.button.caption
             num_capitals = 0
@@ -667,11 +673,8 @@ module Wave_Trace
             end
         end
         
-        
         def sort_speaker(direction)
-        
         end
-        
         
         def delete_speaker
             # FIX - Add "ARE YOU SURE?" warning...
@@ -696,8 +699,8 @@ module Wave_Trace
                     @current_speaker = nil
                     @speaker_list.pop
                     @speaker_list.compact!
-                    @realtime_label.visible = false
-                    @commit_label.visible = false
+                    # @realtime_label.visible = false
+                    # @commit_label.visible = false
                     @speaker_name_label.visible = false	
                     @delete_button.visible = false
                     @please_add_label.visible = true
@@ -727,7 +730,6 @@ module Wave_Trace
             end	
             Sketchup.active_model.active_view.invalidate
         end
-        
             
         def draw
             @speaker_list.each do |speaker|		# FIX - wtf? this call doesn't make sense. lol...
