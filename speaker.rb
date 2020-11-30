@@ -8,8 +8,8 @@ module Wave_Trace
         attr_accessor :speaker_list
         attr_accessor :driver_list
         attr_accessor :add_driver_button
-        attr_accessor :link_to_group_label
-        attr_accessor :link_to_group_drop
+        # attr_accessor :link_to_group_label
+        # attr_accessor :link_to_group_drop
         attr_accessor :group_highlight
         attr_accessor :page
         attr_accessor :group_num
@@ -22,8 +22,8 @@ module Wave_Trace
         @commit_check = nil
         @name_field = nil
         @add_driver_button = nil
-        @link_to_group_label = nil
-        @link_to_group_drop = nil
+        # @link_to_group_label = nil
+        # @link_to_group_drop = nil
         @group_highlight = nil
         @group_num = nil
         
@@ -51,15 +51,15 @@ module Wave_Trace
             @window.add_control(add_driver_button)
             #self.add_driver # FIX - This is where it should be...
             
-            @link_to_group_label = Wave_Trace::gui_create_label("Link speaker to group...", 120, (130 + SPEAKER_PAGE_OFFSET), true)
-            @window.add_control(@link_to_group_label)
+            # @link_to_group_label = Wave_Trace::gui_create_label("Link speaker to group...", 120, (130 + SPEAKER_PAGE_OFFSET), true)
+            # @window.add_control(@link_to_group_label)
             
-            @link_to_group_drop = SKUI::Listbox.new(["-----------", "Group 1 (red)", "Group 2 (green)", "Group 3 (yellow)", "Group 4 (white)"])
-            @link_to_group_drop.position( 115, (148 + SPEAKER_PAGE_OFFSET) )
-            @link_to_group_drop.width = 150
-            @link_to_group_drop.height = 20
-            @link_to_group_drop.on( :change ) { |control| self.link_speaker_to_group(control) }
-            @window.add_control(@link_to_group_drop)
+            # @link_to_group_drop = SKUI::Listbox.new(["-----------", "Group 1 (red)", "Group 2 (green)", "Group 3 (yellow)", "Group 4 (white)"])
+            # @link_to_group_drop.position( 115, (148 + SPEAKER_PAGE_OFFSET) )
+            # @link_to_group_drop.width = 150
+            # @link_to_group_drop.height = 20
+            # @link_to_group_drop.on( :change ) { |control| self.link_speaker_to_group(control) }
+            # @window.add_control(@link_to_group_drop)
         end
         
         def link_speaker_to_group(control)
@@ -135,8 +135,8 @@ module Wave_Trace
             @window.remove_control(@commit_check)
             @window.remove_control(@name_field)
             @window.remove_control(@add_driver_button)
-            @window.remove_control(@link_to_group_label)
-            @window.remove_control(@link_to_group_drop)
+            # @window.remove_control(@link_to_group_label)
+            # @window.remove_control(@link_to_group_drop)
             @window.remove_control(@group_highlight)
             @driver_list.each do |driver|
                 driver.delete
@@ -150,8 +150,8 @@ module Wave_Trace
             end
             @add_driver_button.visible = mod
             @name_field.visible = mod
-            @link_to_group_label.visible = mod
-            @link_to_group_drop.visible = mod
+            # @link_to_group_label.visible = mod
+            # @link_to_group_drop.visible = mod
         end
         
         ### SPEAKER hide
