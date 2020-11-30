@@ -14,67 +14,82 @@ require 'SKUI/core.rb'
 
 module Wave_Trace
 
-	# Add toolbar and menu
-	unless file_loaded?('wave_trace.rb')
-			
-		toolbar = UI::Toolbar.new("Wave Trace toolbar")
-		cmd = UI::Command.new("Wave Trace command") { self.start_tool }
+    # Run once on initial file load
+    unless file_loaded?('wave_trace.rb')
+        # Show Ruby Console
+        #Sketchup.send_action "showRubyPanel:"
+ 
+        # Add toolbar and menu
+		toolbar = UI::Toolbar.new("Wave Trace")
+		cmd = UI::Command.new("Wave Trace") { self.start_tool }
 		cmd.small_icon = "img_toolbar_small.png"
 		cmd.large_icon = "img_toolbar_large.png"
-		cmd.tooltip = "Wave Trace tooltip"
+		cmd.tooltip = "Wave Trace"
 		cmd.status_bar_text = "Advanced raycasting / raytracing tool for speaker sound wave reflection analysis in a studio environment."
-		cmd.menu_text = "Wave Trace menu text"
+		cmd.menu_text = "Wave Trace"
 		toolbar = toolbar.add_item(cmd)
-	
-		# Check if toolbar was visible and restore, or show if its the first time loaded
+        plugins_menu = UI.menu('Plugins')
+		plugins_menu.add_item(cmd)
+        
+        # Check if toolbar was visible and restore, or show if its the first time loaded
 		case toolbar.get_last_state
 		when 1
+			# Toolbar was visible; restore it.
 			toolbar.restore
-			puts "Toolbar was visible last. Restoring."
 		when -1
+			# Toolbar was never shown; show it.
 			toolbar.show
-			puts "Toolbar never shown. Showing it."
 		when 0
-			puts "Toolbar was hidden and remains so."
+			# Toolbar was hidden; keep it hidden.
 		end
-		
-		plugins_menu = UI.menu('Plugins')
-		plugins_menu.add_item(cmd)
-	end
-  
-	# Constants for tool states
-	unless file_loaded?('wave_trace.rb')
-		STATE_IDLE = 0 # The main tool is running and will draw in realtime if the option is on
-		STATE_LOCATE_DRIVER = 1 # User is placing driver points
-		STATE_DEFINE_BARRIER = 2 # User is defining a barrier to stop rays
-		STATE_MARK_IGNORE = 3 # User is toggling objects as ignorable
-		
-		RAY_PAGE_OFFSET = 0 # To manipulate the vertical layouts while under construction
-		SPEAKER_PAGE_OFFSET = (RAY_PAGE_OFFSET + 40)
+        
+        # Tool state constants
+        STATE_IDLE = 0              # 0 The main tool is running and will draw in realtime if the option is on
+        STATE_LOCATE_DRIVER = 1     # 1 User is placing driver points
+        STATE_DEFINE_BARRIER = 2    # 2 User is defining a barrier to stop rays
+        STATE_MARK_IGNORE = 3       # 3 User is toggling objects as ignorable
+        
+        RAY_PAGE_OFFSET = 0 # To manipulate the vertical layouts while under construction
+        SPEAKER_PAGE_OFFSET = (RAY_PAGE_OFFSET + 40)
+        
 	end
 		
 	@main_window = nil
 	@page = nil
 	
-	
 	# Create the initial GUI window or load pre-existing
 	def self.start_tool
-		if @main_window		# There's already an existing window... lets just show it (the :ready trigger will select the tool)
+        if @main_window
+            # Main window already exists; show it. The on(:ready) callback will select the tool.                
 			@main_window.show if @main_window.visible? == false
-		else	# No window... first time through. Create window and main tool.
-			@main_window = SKUI::Window.new({:title => 'Wave Trace window', :width => 800, :height => 800, :resizable => false,
-											 :theme => SKUI::Window::THEME_GRAPHITE})
+        else
+            # No window exists; create a window and main tool.
+			@main_window = SKUI::Window.new(
+                {title: 'Wave Trace',
+                width: 800,
+                height: 800,
+                resizable: false,
+                theme: SKUI::Window::THEME_GRAPHITE
+            })
 			@page = RayTracePage.new(@main_window)
 			
-			# Whenever the window is ready (HTML DOM is loaded) notify the page, select the tool and attempt to load any settings
-			@main_window.on(:ready) { |control| @page.win_open = true ; Sketchup.active_model.select_tool(@page.tool) ; @page.try_load }
+			# When the window is ready (HTML DOM is loaded) notify the page, select the tool and attempt to load any settings
+            @main_window.on(:ready) { |control| 
+                @page.win_open = true
+                Sketchup.active_model.select_tool(@page.tool)
+                @page.try_load 
+            }
 			
-			# Clicking in the window loads the tool unless the window is "closing" (user clicked on the X while simultaneously bringing into focus)
-			# Also check if the tool is already "active"... because even if we re-load the same tool, it will call its "deactivate" routine (bad!)
-			@main_window.on(:focus) { |control|  Sketchup.active_model.select_tool(@page.tool) if @page.win_open && !@page.tool.active }
+            # Load the tool on window focus, unless the window is closing or the tool is already active
+            @main_window.on(:focus) { |control|  
+                Sketchup.active_model.select_tool(@page.tool) if @page.win_open && !@page.tool.active
+            }
 							
-			# If the user CLOSES the window treat this as CANCELLING any operations... then notify the page the window isn't available
-			@main_window.on(:close) { |control| Sketchup.active_model.select_tool(nil) ; @page.win_open = false }
+			# If the user closes the window, cancel any operations and notify the page
+            @main_window.on(:close) { |control| 
+                Sketchup.active_model.select_tool(nil)
+                @page.win_open = false 
+            }
 					
 			@page.draw	# FIX - Redundant... just call a @main_window.show here
 		end 
@@ -131,8 +146,8 @@ module Wave_Trace
 	
 	# Delete all Wave_Trace attributes
 	def self.Attr_Clear
-		ad = Sketchup.active_model.attribute_dictionaries
-		ad.delete('Wave_Trace')
+		dictionaries = Sketchup.active_model.attribute_dictionaries
+	    dictionaries.delete('Wave_Trace')
 		puts "Deleted all Wave_Trace dictionary entries..."
 		return self.Attr_Report # Report the dictionary entries... just to be sure its clear
 	end		
@@ -2459,6 +2474,5 @@ end
 		attr_accessor :active
 	end	 # class
 end
-#-----------------------------------------------------------------------------
+
 file_loaded('wave_trace.rb')
-#-----------------------------------------------------------------------------
