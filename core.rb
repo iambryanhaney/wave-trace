@@ -1,17 +1,6 @@
 require 'sketchup.rb'
 require 'SKUI/core.rb'
 
-#-----------------------------------------------------------------------------
-
-# <SketchUp>/Plugins/my_extension/main.rb
-#module Example
-  #extension_path = File.dirname( __FILE__ )
-  #skui_path = File.join( extension_path, 'SKUI' )
-  #load File.join( skui_path, 'embed_skui.rb' )
-  #::SKUI.embed_in( self )
-  ## SKUI module is now available under Example::SKUI
-#end
-
 module Wave_Trace
 
     # Run once on initial file load
@@ -22,8 +11,8 @@ module Wave_Trace
         # Add toolbar and menu
 		toolbar = UI::Toolbar.new("Wave Trace")
 		cmd = UI::Command.new("Wave Trace") { self.start_tool }
-		cmd.small_icon = "img_toolbar_small.png"
-		cmd.large_icon = "img_toolbar_large.png"
+		cmd.small_icon = "images/img_toolbar_small.png"
+		cmd.large_icon = "images/img_toolbar_large.png"
 		cmd.tooltip = "Wave Trace"
 		cmd.status_bar_text = "Advanced raycasting / raytracing tool for speaker sound wave reflection analysis in a studio environment."
 		cmd.menu_text = "Wave Trace"
@@ -1204,7 +1193,7 @@ class DriverPage
 		fresh_list = %w{0 15 30 45 60 75 90}
 		
 		path = File.dirname(__FILE__)
-		file = File.join(path, 'img_x_angle.png')
+		file = File.join(path, 'images/img_x_angle.png')
 		@x_angle_image = SKUI::Image.new( file )
 		@x_angle_image.position( 190, (190 + offset + SPEAKER_PAGE_OFFSET))
 		@window.add_control(@x_angle_image)		
@@ -1330,7 +1319,7 @@ class DriverPage
 		########################### YYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYY
 		###########################
 
-		file = File.join(path, 'img_y_angle.png')
+		file = File.join(path, 'images/img_y_angle.png')
 		@y_angle_image = SKUI::Image.new( file )
 		@y_angle_image.position( 300, (190 + offset + SPEAKER_PAGE_OFFSET))
 		@window.add_control(@y_angle_image)		
@@ -1465,7 +1454,7 @@ class DriverPage
 		########################### DENSITY DENSITY DENSITY
 		###########################
 
-		file = File.join(path, 'img_ray_density.png')
+		file = File.join(path, 'images/img_ray_density.png')
 		@density_image = SKUI::Image.new( file )
 		@density_image.position( 410, (190 + offset + SPEAKER_PAGE_OFFSET))
 		@window.add_control(@density_image)		
